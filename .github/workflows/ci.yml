@@ -1,0 +1,46 @@
+name: CloudHire CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cloudhire
+          POSTGRES_PASSWORD: cloudhire
+          POSTGRES_DB: cloudhire_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cloudhire"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    env:
+      DATABASE_URL: postgres://cloudhire:cloudhire@localhost:5432/cloudhire_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-secret
+      CLIENT_URL: http://localhost:5173
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --workspaces
+      - run: npm run lint
+      - run: npm run build --workspace frontend
+      - run: npm test --workspace backend
